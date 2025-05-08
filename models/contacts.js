@@ -1,67 +1,88 @@
-const fs = require('fs/promises');
-const path = require('path');
-
-const contactsPath = path.join(__dirname, 'contacts.json');
+const Contact = require("./contact");
+const mongoose = require("mongoose");
 
 const listContacts = async () => {
-  const data = await fs.readFile(contactsPath, 'utf8');
-
-  return JSON.parse(data);
-}
+  try {
+  return await Contact.find();
+  } catch (error) {
+    throw new Error(`Database error: ${error.message}`)
+  }
+};
 
 const getById = async (contactId) => {
-  const contacts = await listContacts();
-  const contact = contacts.find(contact => contact.id === contactId);
-
-  if (!contact) {
-    throw new Error(`Contact with id ${contactId} not found!`);
+  try {
+    const contact = await Contact.findById(contactId);
+    if (!contact) {
+      throw new Error(`Contact with id ${contactId} not found!`);
+    }
+    return contact;
+  } catch (error) {
+    throw new Error(`Database error: ${error.message}`);
   }
-
-  return contact;
-}
-
-const removeContact = async (contactId) => {
-  const contacts = await listContacts();
-  const index = contacts.findIndex((contact) => contact.id === contactId);
-  
-  if (index === -1) {
-    throw new Error(`Contact with id ${ contactId } not found!`);
-  }
-
-  const [removedContact] = contacts.splice(index, 1);
-  await fs.writeFile(contactsPath, JSON.stringify(contacts, null, 2));
-  
-  return removedContact;
-}
+};
 
 const addContact = async (body) => {
-  const contacts = await listContacts();
-  const newContact = {
-    id: Date.now().toString(),
-    ...body
-  };
-  
-  contacts.push(newContact);
-  await fs.writeFile(contactsPath, JSON.stringify(contacts, null, 2));
-  
-  return newContact;
-} 
+  try {
+    return await Contact.create(body);
+  } catch (error) {
+    throw new Error(`Error adding contact: ${error.message}`);
+  }
+};
+
+const removeContact = async (contactId) => {
+  try {
+    const contact = await Contact.findByIdAndDelete(contactId);
+    if (!contact) {
+      throw new Error(`Contact with id ${contactId} not found!`);
+    }
+    return contact;
+  } catch (error) {
+    throw new Error(`Error deleting contact: ${error.message}`);
+  }
+};
 
 const updateContact = async (contactId, body) => {
-  const contacts = await listContacts();
-  const index = contacts.findIndex(contact => contact.id === contactId);
-
-  if (index === -1) {
-    throw new Error(`Contact with id ${contactId} not found!`);
+  try {
+    const updatedContact = await Contact.findByIdAndUpdate(contactId, body, {
+      new: true,
+      runValidators: true,
+    });
+    if (!updatedContact) {
+      throw new Error(`Contact with id ${contactId} not found!`);
+    }
+    return updatedContact;
+  } catch (error) {
+    throw new Error(`Error updating contact: ${error.message}`);
   }
+};
 
-  const updatedContact = { ...contacts[index], ...body };
-  contacts[index] = updatedContact;
+const updateContactStatus = async (contactId, body) => {
+  try {
+    if (!body || typeof body.favorite !== "boolean") {
+      throw new Error("missing field favorite");
+    }
 
-  await fs.writeFile(contactsPath, JSON.stringify(contacts, null, 2));
+    const validId = mongoose.Types.ObjectId.isValid(contactId);
+    if (!validId) {
+      throw new Error("Invalid contact ID format");
+    }
 
-  return updatedContact;
-}
+    const updatedContact = await Contact.findByIdAndUpdate(contactId, {
+      favorite: body.favorite,
+    }, {
+      new: true,
+      runValidators: true,
+    });
+
+    if (!updatedContact) {
+      throw new Error(`Not found`);
+    }
+
+    return updatedContact;
+  } catch (error) {
+    throw new Error(error.message);
+  }
+};
 
 module.exports = {
   listContacts,
@@ -69,4 +90,5 @@ module.exports = {
   removeContact,
   addContact,
   updateContact,
-}
+  updateContactStatus
+};
