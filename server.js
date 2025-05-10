@@ -1,3 +1,7 @@
+// For generating a secret key directly from the terminal:
+//node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+require("dotenv").config();
 const app = require("./app");
 const mongoose = require("mongoose");
 
