@@ -16,8 +16,12 @@ const contactSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    owner: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
   },
-  { versionKey: false }     // eliminates __v from response
+  { versionKey: false } // eliminates __v from response
 );
 
 const Contact = mongoose.model("Contact", contactSchema, "contacts");

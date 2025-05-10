@@ -1,4 +1,5 @@
 const express = require('express');
+const authMiddleware = require('../../middlewares/authMiddleware');
 const {
   listContacts,
   getById,
@@ -7,6 +8,7 @@ const {
   updateContact,
   updateContactStatus,
 } = require("../../models/contacts");
+const Contact = require("../../models/contact");
 
 const router = express.Router();
 
@@ -34,21 +36,31 @@ const contactSchema = Joi.object({
   }),
 });
 
-router.get("/", async (req, res, next) => {
+router.get("/", authMiddleware, async (req, res, next) => {
   try {
-    const contacts = await listContacts();
+    const { page = 1, limit = 20, favorite } = req.query;
+    
+    const filter = { owner: req.user._id };
+    if (favorite !== undefined) {
+      filter.favorite = favorite === "true";
+    }
+
+    const contacts = await listContacts(filter, Number(page), Number(limit));
     res.status(200).json(contacts);
   } catch (error) {
     next(error);
   }
 });
 
-router.get("/:contactId", async (req, res, next) => {
+router.get("/:contactId", authMiddleware, async (req, res, next) => {
   try {
     const { contactId } = req.params;
     const contact = await getById(contactId);
 
-    if (!contact) {
+    // using .toString() to avoid comparing ObjectId's
+    // req.user._id extracted from JWT token
+    // contact.owner extracted from DB
+    if (!contact || contact.owner.toString() !== req.user._id.toString()) {
       return res.status(404).json({ message: "Not found!" });
     }
 
@@ -58,7 +70,7 @@ router.get("/:contactId", async (req, res, next) => {
   }
 });
 
-router.post("/", async (req, res, next) => {
+router.post("/", authMiddleware, async (req, res, next) => {
   try {
     const { error } = contactSchema.validate(req.body);
 
@@ -66,19 +78,19 @@ router.post("/", async (req, res, next) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    const newContact = await addContact(req.body);
+    const newContact = await addContact({ ...req.body, owner: req.user._id });
     res.status(201).json(newContact);
   } catch (error) {
     next(error);
   }
 });
 
-router.delete("/:contactId", async (req, res, next) => {
+router.delete("/:contactId", authMiddleware, async (req, res, next) => {
   try {
     const { contactId } = req.params;
     const removedContact = await removeContact(contactId);
 
-    if (!removedContact) {
+    if (!removedContact || removedContact.owner.toString() !== req.user._id.toString()) {
       return res.status(404).json({ message: "Not found" });
     }
 
@@ -88,7 +100,7 @@ router.delete("/:contactId", async (req, res, next) => {
   }
 });
 
-router.put("/:contactId", async (req, res, next) => {
+router.put("/:contactId", authMiddleware, async (req, res, next) => {
   try {
     const { contactId } = req.params;
 
@@ -98,7 +110,7 @@ router.put("/:contactId", async (req, res, next) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    const updatedContact = await updateContact(contactId, req.body);
+    const updatedContact = await updateContact(contactId, { ...req.body, owner: req.user._id });
 
     if (!updatedContact) {
       return res.status(404).json({ message: "Not found!" });
@@ -110,7 +122,7 @@ router.put("/:contactId", async (req, res, next) => {
   }
 });
 
-router.patch("/:contactId/favorite", async (req, res, next) => {
+router.patch("/:contactId/favorite", authMiddleware, async (req, res, next) => {
   try {
     const { contactId } = req.params;
     console.log("Received contactId:", contactId);
@@ -125,7 +137,13 @@ router.patch("/:contactId/favorite", async (req, res, next) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    const updatedContact = await updateContactStatus(contactId, req.body);
+    const contact = await Contact.findById(contactId);
+    // check to see if contact from DB is the same as the one from the token
+    if (!contact || contact.owner.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Forbidden: You do not own this contact" });
+    }
+
+    const updatedContact = await updateContactStatus(contactId, { ...req.body, owner: req.user._id });
 
     if (!updatedContact) {
       return res.status(404).json({ message: "Not found" });
