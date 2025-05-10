@@ -1,9 +1,10 @@
 const Contact = require("./contact");
 const mongoose = require("mongoose");
 
-const listContacts = async () => {
+const listContacts = async (filter, page = 1, limit = 20) => {
   try {
-  return await Contact.find();
+    const skip = (page - 1) * limit;
+    return await Contact.find(filter).skip(skip).limit(limit);
   } catch (error) {
     throw new Error(`Database error: ${error.message}`)
   }
