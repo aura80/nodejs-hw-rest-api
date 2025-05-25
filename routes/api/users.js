@@ -12,6 +12,7 @@ const path = require('path');
 const Jimp = require("jimp").default; 
 
 const { signup } = require('../../controllers/auth');
+const { resendVerificationEmail } = require('../../controllers/auth');
 // const sendVerificationMail = require('../../service/emailService');
 
 // const gravatar = require('gravatar');
@@ -293,5 +294,7 @@ router.get("/verify/:verificationToken", async (req, res) => {
   // res.redirect("http://localhost:3000/login");
 
 }); 
+
+router.post("/verify", resendVerificationEmail);
 
 module.exports = router;
