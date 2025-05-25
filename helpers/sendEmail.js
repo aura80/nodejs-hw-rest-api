@@ -17,7 +17,7 @@ const sendVerificationMail = async (email, verificationToken) => {
       from: process.env.EMAIL_USER,
       to: email,
       subject: "Email Verification",
-      text: `Please verify your email by clicking the following link: http://localhost:3000/api/auth/verify/${verificationToken}`,
+      text: `Please verify your email by clicking the following link: http://localhost:3000/api/users/verify/${verificationToken}`,
     };
 
     const info = await transporter.sendMail(mailOptions);

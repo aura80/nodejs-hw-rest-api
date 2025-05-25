@@ -264,14 +264,19 @@ router.patch('/avatars', authMiddleware, upload.single('avatar'), async (req, re
     }
 });
 
-router.get("/verify/:verificationToken", authMiddleware, async (req, res) => {
+router.get("/verify/:verificationToken", async (req, res) => {
   const { verificationToken } = req.params;
+
+  console.log("🔹 Token received from request:", verificationToken);
 
   const user = await User.findOne({ verificationToken });
 
   if (!user) {
+    console.log("❌ User not found in DB!");
     return res.status(404).json({ message: "User not found" });
   }
+
+  console.log("✅ User found:", user);
 
   user.verify = true;
   user.verificationToken = null;
@@ -282,7 +287,11 @@ router.get("/verify/:verificationToken", authMiddleware, async (req, res) => {
   //   { $set: { verify: true }, $unset: { verificationToken: "" } }
   // );
 
+  console.log("✅ User verified successfully!");
+
   res.status(200).json({ message: "Verification successful" });
+  // res.redirect("http://localhost:3000/login");
+
 }); 
 
 module.exports = router;
