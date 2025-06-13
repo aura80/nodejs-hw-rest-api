@@ -9,6 +9,7 @@ const {
   updateContactStatus,
 } = require("../../models/contacts");
 const Contact = require("../../models/contact");
+const mongoose = require("mongoose");
 
 const router = express.Router();
 
@@ -38,19 +39,39 @@ const contactSchema = Joi.object({
 
 router.get("/", authMiddleware, async (req, res, next) => {
   try {
+    console.log("🔹 Authenticated User ID:", req.user._id);
+
     const { page = 1, limit = 20, favorite } = req.query;
     
-    const filter = { owner: req.user._id };
+    const filter = { owner: new mongoose.Types.ObjectId(req.user._id) };
+
+    console.log("🔹 Filter owner:", filter.owner);
+
+
     if (favorite !== undefined) {
       filter.favorite = favorite === "true";
     }
 
     const contacts = await listContacts(filter, Number(page), Number(limit));
+
+    console.log("🔹 Contacts from DB:", contacts);
+
     res.status(200).json(contacts);
   } catch (error) {
     next(error);
   }
 });
+
+const testFindContacts = async () => {
+  const testId = new mongoose.Types.ObjectId("6833307a710f7341d2425e6e"); // ID utilizator din autentificare
+  const testContacts = await Contact.find({ owner: testId });
+
+  console.log("🔹 Test Contacts:", testContacts);
+};
+
+testFindContacts();
+
+
 
 router.get("/:contactId", authMiddleware, async (req, res, next) => {
   try {

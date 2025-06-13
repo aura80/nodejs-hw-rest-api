@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../../models/user');
@@ -10,20 +11,13 @@ const path = require('path');
 // const Jimp = require('jimp');
 const Jimp = require("jimp").default; 
 
-const gravatar = require('gravatar');
+const { signup } = require('../../controllers/auth');
+const { resendVerificationEmail } = require('../../controllers/auth');
+// const sendVerificationMail = require('../../service/emailService');
+
+// const gravatar = require('gravatar');
 
 const router = express.Router();
-
-const signupSchema = Joi.object({
-    email: Joi.string().email().required().messages({
-        "any.required": "missing required email field",
-        "string.email": "Email must be a valid email address",
-    }),
-    password: Joi.string().min(6).required().messages({
-        "any.required": "missing required password field",
-        "string.min": "Password should have at least 6 characters",
-    }),
-});
 
 const loginSchema = Joi.object({
   email: Joi.string().email().required().messages({
@@ -46,36 +40,55 @@ const subscriptionSchema = Joi.object({
     }),
 });
 
-router.post('/signup', async (req, res) => {
-    try {
-        const { error } = signupSchema.validate(req.body);
+async function updateExistingUsers() {
+  await User.updateMany(
+    { verificationToken: { $exists: false } },
+    { $set: { verificationToken: crypto.randomUUID() } }
+  );
+  console.log("✅ Updated existing users with verification tokens.");
+}
 
-        if (error) {
-            return res
-              .status(400)
-              .json({ message: "Validation Error", details: error.details[0].message });
-        }
+updateExistingUsers();
 
-        const { email, password } = req.body;
+router.post('/signup', signup);
 
-        const existingUser = await User.findOne({ email });
+// router.post('/signup', async (req, res) => {
+//     try {
+//         const { error } = signupSchema.validate(req.body);
 
-        if (existingUser) {
-            return res.status(409).json({ message: 'Email in use' });
-        }
+//         if (error) {
+//             return res
+//               .status(400)
+//               .json({ message: "Validation Error", details: error.details[0].message });
+//         }
 
-        const hashedPassword = await bcrypt.hash(password, 10);
+//         const { email, password } = req.body;
 
-        const avatarURL = gravatar.url(email, { s: '250', d: 'retro' });
+//         const existingUser = await User.findOne({ email });
+//         console.log("🔹 Existing user:", existingUser);
 
-        const user = await User.create({ email, password: hashedPassword, avatarURL });
+//         if (existingUser) {
+//             return res.status(409).json({ message: 'Email in use' });
+//         }
 
-        res.status(201).json({ user: { email: user.email, subscription: user.subscription, avatarURL } });
+//         const hashedPassword = await bcrypt.hash(password, 10);
 
-    } catch (error) {
-        res.status(500).json({ message: 'Internal server error' });
-    }
-});
+//         const avatarURL = gravatar.url(email, { s: '250', d: 'retro' });
+      
+//         const verificationToken = crypto.randomUUID();
+
+//         const user = await User.create({ email, password: hashedPassword, avatarURL, verificationToken });
+      
+//         console.log("✅ Saved user in DB:", user);
+      
+//         await sendVerificationMail(email, verificationToken);
+
+//         res.status(201).json({message: "User registered. Please verify your email.", user: { email: user.email, subscription: user.subscription, avatarURL } });
+
+//     } catch (error) {
+//         res.status(500).json({ message: 'Internal server error' });
+//     }
+// });
 
 router.post('/login', async (req, res) => {
     try { 
@@ -251,5 +264,37 @@ router.patch('/avatars', authMiddleware, upload.single('avatar'), async (req, re
         res.status(500).json({ message: 'Internal server error' });
     }
 });
+
+router.get("/verify/:verificationToken", async (req, res) => {
+  const { verificationToken } = req.params;
+
+  console.log("🔹 Token received from request:", verificationToken);
+
+  const user = await User.findOne({ verificationToken });
+
+  if (!user) {
+    console.log("❌ User not found in DB!");
+    return res.status(404).json({ message: "User not found" });
+  }
+
+  console.log("✅ User found:", user);
+
+  user.verify = true;
+  user.verificationToken = null;
+  await user.save();
+
+  // await User.updateOne(
+  //   { _id: user._id },
+  //   { $set: { verify: true }, $unset: { verificationToken: "" } }
+  // );
+
+  console.log("✅ User verified successfully!");
+
+  res.status(200).json({ message: "Verification successful" });
+  // res.redirect("http://localhost:3000/login");
+
+}); 
+
+router.post("/verify", resendVerificationEmail);
 
 module.exports = router;
